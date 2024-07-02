@@ -2,7 +2,7 @@
 
 Dive into the mesmerizing world of Cellular Automata Simulation, where simple rules lead to complex and beautiful patterns. This interactive simulation allows you to explore the fascinating behavior of cellular automata through a visually engaging and dynamic display.
 
-![Screenshot 2024-06-30 134226](https://github.com/jamesbray03/Artificial-Life/assets/47334864/bc28efb2-9cf2-4b50-a7f1-b71801f8abaf)
+![image](https://github.com/jamesbray03/Artificial-Life/assets/47334864/fe8ff78d-5cb5-4772-a231-de8f43ad70ee)
 
 ## Overview of Controls:
 - **Auto-Run Toggle:** Automatically updates the simulation continuously.
