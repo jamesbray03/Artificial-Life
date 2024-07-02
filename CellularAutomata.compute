@@ -1,0 +1,134 @@
+// This is a compute shader that simulates a cellular automaton with a normal growth function.
+
+// kernels
+#pragma kernel Initialize
+#pragma kernel Draw
+#pragma kernel Update
+#pragma kernel CheckStability
+
+// seed for RNG
+int seed;
+
+// resolution
+uint resolution;
+uint kernelResolution;
+
+// growth parameters
+float rate;
+float mu;
+float sigma;
+float kernelWeight;
+
+// draw mode parameters
+int drawMode;
+int2 drawCoords;
+float drawRadius;
+
+// textures and buffers
+RWTexture2D<float4> currentTexture;
+RWTexture2D<float4> nextTexture;
+RWTexture2D<float4> kernelTexture;
+RWStructuredBuffer<uint> stabilityResult;
+
+// pseudo-random number generator
+float rand(uint2 co, int seed)
+{
+    uint x = co.x * 3266489917u + co.y * 374761393u + seed;
+    x = (x << 17u) | (x >> 15u); // rotate left
+    x *= 668265263u;
+    x = (x << 13u) | (x >> 19u); // rotate left
+    x *= 2246822519u;
+    return (x ^ (x >> 15u)) * 2.3283064365387e-10; // convert to float in [0, 1)
+}
+
+// returns 1 if pixel is inside a fuzzy circle
+float fuzzyCircle(uint2 co, uint2 centre, float radius, int seed)
+{
+    if (length(float2(co) - float2(centre)) < radius + rand(co, seed) * radius / 2.0) { return 1.0; }
+    else { return 0.0; }
+}
+
+// returns normal distribution
+float NormalGrowth(float value, float rate, float mu, float sigma)
+{
+    return 2 * rate * (exp(-pow(value - mu, 2) / (2 * pow(sigma, 2))) - 0.5);
+}
+
+// sets the initial state of the automaton
+[numthreads(8, 8, 1)]
+void Initialize(uint3 id : SV_DispatchThreadID)
+{
+    uint2 pixelCoords = id.xy;
+    uint centre = resolution / 2;
+    float value = fuzzyCircle(pixelCoords, uint2(centre, centre), centre / 2, seed);
+    currentTexture[pixelCoords] = float4(value, value, value, 1.0);
+}
+
+// draws on the current texture
+[numthreads(8, 8, 1)]
+void Draw(uint3 id : SV_DispatchThreadID)
+{
+    int2 pixelCoords = id.xy;
+    int value = fuzzyCircle(pixelCoords, drawCoords, drawRadius, seed);
+    
+    // only apply to pixels in the fuzzy circle
+    if (value == 1.0) { currentTexture[pixelCoords] = float4(drawMode, drawMode, drawMode, 1.0); }
+}
+
+// calculate the next state of the automaton
+[numthreads(8, 8, 1)]
+void Update(uint3 id : SV_DispatchThreadID)
+{
+    int2 pixelCoords = id.xy;
+    int radius = kernelResolution / 2;
+    float4 pixelValue = currentTexture[pixelCoords];
+    
+    // get weighted sum of neighbours
+    float sum = 0.0f;
+    for (int ky = -radius; ky <= radius; ky++)
+    {
+        for (int kx = -radius; kx <= radius; kx++)
+        {
+            // wrap edge cases
+            int2 neighborCoords = int2((pixelCoords.x + kx + resolution) % resolution,
+                                       (pixelCoords.y + ky + resolution) % resolution);
+            
+            float4 neighborValue = currentTexture[neighborCoords];
+            sum += neighborValue.r * kernelTexture[int2(kx + radius, ky + radius)].r;
+        }
+    }
+    
+    // apply normal growth function to determine the new value
+    float newValue = 0.0;
+    newValue = clamp(pixelValue.r + 0.5 * NormalGrowth(sum / kernelWeight, rate, mu, sigma), 0.0, 1.0);
+    
+    // write the updated value to the next texture
+    nextTexture[pixelCoords] = float4(newValue, newValue, newValue, 1.0);
+}
+
+// udpate the stability result buffer with 0 if alive, 1 if static, 2 if dead
+[numthreads(8, 8, 1)]
+void CheckStability(uint3 id : SV_DispatchThreadID)
+{
+    uint2 pixelCoords = id.xy;
+    float4 currentPixel = currentTexture[pixelCoords];
+    float4 nextPixel = nextTexture[pixelCoords];
+    uint localStability;
+    
+    // if the simulation isn't dead (constant colour)
+    if (any(currentPixel != currentTexture[int2(0, 0)]))
+    {
+        // and if the pixel has changed significantly, set to 0 (alive)
+        if (abs(currentPixel.r - nextPixel.r) > 0.05) { localStability = 0; }
+        
+        // otherwise set to 1 (static)
+        else { localStability = 1; }
+    }
+    
+    // if the simulation is dead, set to 2 (dead)
+    else { localStability = 2; }
+    
+    // because of the priotrity order of the states, an atomic minimum operation
+    // can be used to determine the global state across all threads (return 'best case')
+    InterlockedMin(stabilityResult[0], localStability);
+}
