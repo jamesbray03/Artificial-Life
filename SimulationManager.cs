@@ -94,7 +94,7 @@ public class SimulationManager : MonoBehaviour
         nextTexture = CreateTexture(resolution);
 
         // set up initial texture
-        if (!drawMode.isOn)
+        if (!drawMode.isOn || (drawMode.isOn && autoRun.isOn))
         {
             cellularAutomataShader.SetTexture(initializeHandle, "currentTexture", currentTexture);
             cellularAutomataShader.Dispatch(initializeHandle, resolution / 8, resolution / 8, 1);

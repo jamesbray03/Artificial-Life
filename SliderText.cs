@@ -6,13 +6,12 @@ using TMPro;
 
 public class SliderText : MonoBehaviour
 {
+    // slider
     public Slider slider;
-    void Start()
-    {
-        UpdateText();
-    }
-    public void UpdateText()
-    {
-        GetComponent<TMP_Text>().text = slider.value.ToString();
-    }
+
+    // called on start
+    void Start() { UpdateText(); }
+
+    // update text to show slider value
+    public void UpdateText() { GetComponent<TMP_Text>().text = slider.value.ToString(); }
 }

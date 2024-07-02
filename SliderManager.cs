@@ -5,8 +5,10 @@ using UnityEngine.UI;
 
 public class SliderManager : MonoBehaviour
 {
+    // sliders
     public List<Slider> sliders;
 
+    // sets parameters to random values
     public void Randomise()
     {
         foreach (Slider slider in sliders)
@@ -15,6 +17,7 @@ public class SliderManager : MonoBehaviour
         }
     }
 
+    // nudges parameters by a random amount
     public void Nudge()
     {
         foreach (Slider slider in sliders)
